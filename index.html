@@ -18,8 +18,8 @@
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 
-  <!-- Lucide Icons Standalone -->
-  <script src="https://unpkg.com/lucide@latest"></script>
+  <!-- Lucide React UMD Oficial -->
+  <script src="https://unpkg.com/lucide-react@0.395.0/dist/umd/lucide-react.min.js"></script>
 
   <style>
     body { font-family: 'Inter', system-ui, sans-serif; }
@@ -38,64 +38,14 @@
   <script type="text/babel">
     const { useState, useEffect, useCallback, useMemo, useRef } = React;
 
-    // Helper para renderizar iconos de Lucide en React sin empaquetadores
-    function LucideIcon({ name, className = "h-4 w-4", ...props }) {
-      const iconData = lucide.icons[name];
-      if (!iconData) return null;
-      
-      return (
-        <svg
-          xmlns="http://www.w3.org/2000/svg"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          className={className}
-          {...props}
-          dangerouslySetInnerHTML={{
-            __html: iconData.toSvg().replace(/^<svg[^>]*>/, '').replace(/<\/svg>$/, '')
-          }}
-        />
-      );
-    }
-
-    // Componentes de Iconos
-    const ChefHat = (p) => <LucideIcon name="ChefHat" {...p} />;
-    const Search = (p) => <LucideIcon name="Search" {...p} />;
-    const Plus = (p) => <LucideIcon name="Plus" {...p} />;
-    const Pencil = (p) => <LucideIcon name="Pencil" {...p} />;
-    const Trash2 = (p) => <LucideIcon name="Trash2" {...p} />;
-    const X = (p) => <LucideIcon name="X" {...p} />;
-    const Clock = (p) => <LucideIcon name="Clock" {...p} />;
-    const Thermometer = (p) => <LucideIcon name="Thermometer" {...p} />;
-    const Gauge = (p) => <LucideIcon name="Gauge" {...p} />;
-    const Download = (p) => <LucideIcon name="Download" {...p} />;
-    const Upload = (p) => <LucideIcon name="Upload" {...p} />;
-    const ChevronLeft = (p) => <LucideIcon name="ChevronLeft" {...p} />;
-    const ChevronRight = (p) => <LucideIcon name="ChevronRight" {...p} />;
-    const ChevronUp = (p) => <LucideIcon name="ChevronUp" {...p} />;
-    const ChevronDown = (p) => <LucideIcon name="ChevronDown" {...p} />;
-    const Check = (p) => <LucideIcon name="Check" {...p} />;
-    const ArrowLeft = (p) => <LucideIcon name="ArrowLeft" {...p} />;
-    const Users = (p) => <LucideIcon name="Users" {...p} />;
-    const RotateCcw = (p) => <LucideIcon name="RotateCcw" {...p} />;
-    const Save = (p) => <LucideIcon name="Save" {...p} />;
-    const ListChecks = (p) => <LucideIcon name="ListChecks" {...p} />;
-    const AlertCircle = (p) => <LucideIcon name="AlertCircle" {...p} />;
-    const Beaker = (p) => <LucideIcon name="Beaker" {...p} />;
-    const Circle = (p) => <LucideIcon name="Circle" {...p} />;
-    const LayoutGrid = (p) => <LucideIcon name="LayoutGrid" {...p} />;
-    const Soup = (p) => <LucideIcon name="Soup" {...p} />;
-    const Wind = (p) => <LucideIcon name="Wind" {...p} />;
-    const Shield = (p) => <LucideIcon name="Shield" {...p} />;
-    const Snowflake = (p) => <LucideIcon name="Snowflake" {...p} />;
-    const Flame = (p) => <LucideIcon name="Flame" {...p} />;
-    const PlayCircle = (p) => <LucideIcon name="PlayCircle" {...p} />;
-    const Layers = (p) => <LucideIcon name="Layers" {...p} />;
-    const Loader2 = (p) => <LucideIcon name="Loader2" {...p} />;
-    const Timer = (p) => <LucideIcon name="Timer" {...p} />;
+    // Extraer iconos directamente del paquete oficial LucideReact
+    const {
+      ChefHat, Search, Plus, Pencil, Trash2, X, Clock, Thermometer, Gauge,
+      Download, Upload, ChevronLeft, ChevronRight, ChevronUp, ChevronDown,
+      Check, ArrowLeft, Users, RotateCcw, Save, ListChecks, AlertCircle,
+      Beaker, Circle, LayoutGrid, Soup, Wind, Shield, Snowflake, Flame,
+      PlayCircle, Layers, Loader2, Timer,
+    } = LucideReact;
 
     /* CONSTANTES */
     const STORAGE_KEY = 'tm7_recetario_db_v1';
@@ -224,7 +174,7 @@
       },
     ];
 
-    /* STORAGE ADAPTER */
+    /* CAPA DE PERSISTENCIA (localStorage) */
     function readDB() {
       try {
         const raw = localStorage.getItem(STORAGE_KEY);
@@ -925,7 +875,7 @@
               </div>
               <h2 className="text-2xl font-bold text-slate-800" style={{ fontFamily: FONT_DISPLAY }}>{recipe.title}</h2>
             </div>
-            <button onClick={() => onEdit(recipe.id)} aria-label="Editar receta" className="mt-1 rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-emerald-600">
+            <button onClick={onEdit(recipe.id)} aria-label="Editar receta" className="mt-1 rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-emerald-600">
               <Pencil className="h-5 w-5" />
             </button>
             <button onClick={() => onDelete(recipe)} aria-label="Eliminar receta" className="mt-1 rounded-lg p-2 text-slate-400 hover:bg-red-50 hover:text-red-500">
