@@ -1,0 +1,1322 @@
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import {
+  ChefHat, Search, Plus, Pencil, Trash2, X, Clock, Thermometer, Gauge,
+  Download, Upload, ChevronLeft, ChevronRight, ChevronUp, ChevronDown,
+  Check, ArrowLeft, Users, RotateCcw, Save, ListChecks, AlertCircle,
+  Beaker, Circle, LayoutGrid, Soup, Wind, Shield, Snowflake, Flame,
+  PlayCircle, Layers, Loader2, Timer,
+} from 'lucide-react';
+
+/* =========================================================================
+   CONSTANTES DE DOMINIO — parámetros específicos de Thermomix TM7
+   ========================================================================= */
+
+const STORAGE_KEY = 'tm7_recetario_db_v1';
+
+const DEFAULT_TAGS = ['Masas', 'Sopas', 'Postres', 'Varoma', 'Salsas', 'Principales', 'Guarniciones', 'Bebidas'];
+
+const TEMPERATURES = [
+  { value: 'sin-calor', label: 'Sin calor', icon: Snowflake },
+  { value: '37', label: '37°C', icon: Thermometer },
+  { value: '50', label: '50°C', icon: Thermometer },
+  { value: '80', label: '80°C', icon: Thermometer },
+  { value: '90', label: '90°C', icon: Thermometer },
+  { value: '100', label: '100°C', icon: Flame },
+  { value: '120', label: '120°C', icon: Flame },
+  { value: 'varoma', label: 'Varoma', icon: Soup },
+  { value: 'alta', label: 'Alta Temp.', icon: Flame },
+];
+
+const SPEEDS = ['Cuchara', '0.5', '1', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'Turbo'];
+
+const ROTATIONS = [
+  { value: 'normal', label: 'Normal' },
+  { value: 'inverso', label: 'Giro Inverso' },
+  { value: 'izquierda', label: 'Giro a la Izquierda' },
+];
+
+const TM7_MODES = [
+  { value: '', label: 'Ninguno' },
+  { value: 'espiga', label: 'Espiga / Amasar' },
+  { value: 'triturar', label: 'Triturar' },
+  { value: 'vacio', label: 'Al Vacío / Sous-vide' },
+  { value: 'coccion-lenta', label: 'Cocción Lenta' },
+  { value: 'fermentar', label: 'Fermentar' },
+  { value: 'espesar', label: 'Espesar' },
+  { value: 'hervidor', label: 'Hervidor' },
+  { value: 'prelavado', label: 'Prelavado' },
+  { value: 'emulsionar', label: 'Emulsionar' },
+];
+
+const ACCESSORIES = [
+  { value: 'cubilete', label: 'Cubilete', icon: Beaker },
+  { value: 'tapa', label: 'Tapa', icon: Circle },
+  { value: 'cestillo', label: 'Cestillo', icon: LayoutGrid },
+  { value: 'varoma', label: 'Varoma', icon: Soup },
+  { value: 'mariposa', label: 'Mariposa', icon: Wind },
+  { value: 'cubrecuchillas', label: 'Cubrecuchillas', icon: Shield },
+];
+
+const UNITS = ['g', 'kg', 'ml', 'l', 'cda', 'cdta', 'unidad', 'pizca', 'al gusto'];
+
+const FONT_DISPLAY = "'Space Grotesk', sans-serif";
+const FONT_BODY = "'Inter', system-ui, sans-serif";
+
+const uid = () => `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 9)}`;
+
+/* =========================================================================
+   RECETAS DE EJEMPLO — se cargan una sola vez si el almacenamiento está vacío
+   ========================================================================= */
+
+const SEED_RECIPES = [
+  {
+    id: 'seed-bolognesa',
+    title: 'Salsa Bolognesa Express',
+    description: 'La clásica salsa italiana de carne, lista en menos de 40 minutos sin perderla de vista.',
+    totalTime: 40,
+    prepTime: 10,
+    servings: 4,
+    tags: ['Salsas', 'Principales'],
+    ingredients: [
+      { id: 'b-i1', quantity: '1', unit: 'unidad', name: 'Cebolla' },
+      { id: 'b-i2', quantity: '2', unit: 'unidad', name: 'Dientes de ajo' },
+      { id: 'b-i3', quantity: '1', unit: 'unidad', name: 'Zanahoria' },
+      { id: 'b-i4', quantity: '1', unit: 'unidad', name: 'Rama de apio' },
+      { id: 'b-i5', quantity: '40', unit: 'ml', name: 'Aceite de oliva' },
+      { id: 'b-i6', quantity: '500', unit: 'g', name: 'Carne picada' },
+      { id: 'b-i7', quantity: '400', unit: 'g', name: 'Tomate triturado' },
+      { id: 'b-i8', quantity: '1', unit: 'cdta', name: 'Sal' },
+      { id: 'b-i9', quantity: '1', unit: 'pizca', name: 'Pimienta negra' },
+      { id: 'b-i10', quantity: '1', unit: 'cdta', name: 'Orégano' },
+    ],
+    steps: [
+      { id: 'b-s1', text: 'Colocar la cebolla, el ajo, la zanahoria y el apio en el vaso y trocear.', timeMin: 0, timeSec: 10, temperature: '', speed: '5', rotation: 'normal', mode: '', accessories: [] },
+      { id: 'b-s2', text: 'Bajar los restos hacia el fondo con la espátula. Añadir el aceite y sofreír.', timeMin: 5, timeSec: 0, temperature: '100', speed: '1', rotation: 'inverso', mode: '', accessories: ['cubilete'] },
+      { id: 'b-s3', text: 'Incorporar la carne picada y cocinar hasta que pierda el color rosado.', timeMin: 6, timeSec: 0, temperature: '100', speed: '1', rotation: 'inverso', mode: '', accessories: [] },
+      { id: 'b-s4', text: 'Agregar el tomate triturado, la sal, la pimienta y el orégano. Dejar reducir.', timeMin: 18, timeSec: 0, temperature: '90', speed: 'Cuchara', rotation: 'izquierda', mode: 'coccion-lenta', accessories: ['cubilete'] },
+    ],
+  },
+  {
+    id: 'seed-pan',
+    title: 'Pan Casero Integral',
+    description: 'Miga esponjosa y corteza dorada: el amasado y la primera fermentación los resuelve la Thermomix.',
+    totalTime: 180,
+    prepTime: 15,
+    servings: 8,
+    tags: ['Masas'],
+    ingredients: [
+      { id: 'p-i1', quantity: '300', unit: 'g', name: 'Harina integral' },
+      { id: 'p-i2', quantity: '200', unit: 'g', name: 'Harina de fuerza' },
+      { id: 'p-i3', quantity: '320', unit: 'ml', name: 'Agua tibia' },
+      { id: 'p-i4', quantity: '25', unit: 'g', name: 'Levadura fresca' },
+      { id: 'p-i5', quantity: '10', unit: 'g', name: 'Sal' },
+      { id: 'p-i6', quantity: '15', unit: 'g', name: 'Aceite de oliva' },
+      { id: 'p-i7', quantity: '10', unit: 'g', name: 'Azúcar' },
+    ],
+    steps: [
+      { id: 'p-s1', text: 'Verter el agua tibia, la levadura y el azúcar en el vaso y disolver.', timeMin: 0, timeSec: 15, temperature: '37', speed: '2', rotation: 'normal', mode: '', accessories: [] },
+      { id: 'p-s2', text: 'Añadir ambas harinas, la sal y el aceite. Amasar.', timeMin: 3, timeSec: 0, temperature: '', speed: '', rotation: 'normal', mode: 'espiga', accessories: [] },
+      { id: 'p-s3', text: 'Formar una bola con la masa, dejarla en el vaso y tapar. Primera fermentación.', timeMin: 60, timeSec: 0, temperature: '', speed: '', rotation: 'normal', mode: 'fermentar', accessories: [] },
+      { id: 'p-s4', text: 'Volcar la masa sobre la mesada, desgasificar, dar forma y colocar en un molde. Fermentar por segunda vez.', timeMin: 45, timeSec: 0, temperature: '', speed: '', rotation: 'normal', mode: '', accessories: [] },
+      { id: 'p-s5', text: 'Hornear en horno precalentado a 200°C hasta que suene hueco al golpear la base.', timeMin: 35, timeSec: 0, temperature: '', speed: '', rotation: 'normal', mode: '', accessories: [] },
+    ],
+  },
+  {
+    id: 'seed-sopa',
+    title: 'Sopa de Calabaza y Jengibre al Varoma',
+    description: 'Cremosa, liviana y con un toque picante de jengibre, cocida al vapor en un solo paso.',
+    totalTime: 35,
+    prepTime: 10,
+    servings: 4,
+    tags: ['Sopas', 'Varoma'],
+    ingredients: [
+      { id: 's-i1', quantity: '600', unit: 'g', name: 'Calabaza en cubos' },
+      { id: 's-i2', quantity: '1', unit: 'unidad', name: 'Cebolla' },
+      { id: 's-i3', quantity: '20', unit: 'g', name: 'Jengibre fresco' },
+      { id: 's-i4', quantity: '700', unit: 'ml', name: 'Caldo de verduras' },
+      { id: 's-i5', quantity: '30', unit: 'ml', name: 'Aceite de oliva' },
+      { id: 's-i6', quantity: '100', unit: 'ml', name: 'Crema de leche' },
+      { id: 's-i7', quantity: '1', unit: 'cdta', name: 'Sal' },
+      { id: 's-i8', quantity: '1', unit: 'pizca', name: 'Pimienta' },
+    ],
+    steps: [
+      { id: 's-s1', text: 'Colocar la cebolla y el jengibre en el vaso y trocear.', timeMin: 0, timeSec: 8, temperature: '', speed: '5', rotation: 'normal', mode: '', accessories: [] },
+      { id: 's-s2', text: 'Añadir el aceite y sofreír.', timeMin: 3, timeSec: 0, temperature: '100', speed: '1', rotation: 'inverso', mode: '', accessories: ['cubilete'] },
+      { id: 's-s3', text: 'Incorporar la calabaza y el caldo. Ubicar el Varoma con la tapa en su posición y cocinar al vapor.', timeMin: 20, timeSec: 0, temperature: 'varoma', speed: '1', rotation: 'normal', mode: '', accessories: ['varoma', 'cestillo'] },
+      { id: 's-s4', text: 'Retirar el Varoma. Agregar la sal, la pimienta y la crema. Triturar hasta lograr una textura cremosa.', timeMin: 1, timeSec: 0, temperature: '', speed: '10', rotation: 'normal', mode: 'triturar', accessories: [] },
+    ],
+  },
+];
+
+/* =========================================================================
+   CAPA DE PERSISTENCIA — Storage Adapter
+   Hoy: localStorage. Mañana: reemplazable por Supabase / Firebase / REST
+   sin tocar ningún componente de la interfaz, porque todos hablan con
+   `storageAdapter` a través de la misma interfaz asíncrona.
+   ========================================================================= */
+
+function readDB() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
+
+function writeDB(recipes) {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(recipes));
+}
+
+const storageAdapter = {
+  async getAll() {
+    return readDB().sort((a, b) => (b.updatedAt || '').localeCompare(a.updatedAt || ''));
+  },
+  async getById(id) {
+    return readDB().find((r) => r.id === id) || null;
+  },
+  async save(recipe) {
+    const db = readDB();
+    const now = new Date().toISOString();
+    if (recipe.id) {
+      const idx = db.findIndex((r) => r.id === recipe.id);
+      const updated = { ...recipe, updatedAt: now };
+      if (idx >= 0) {
+        db[idx] = updated;
+      } else {
+        db.push({ ...updated, createdAt: updated.createdAt || now });
+      }
+      writeDB(db);
+      return updated;
+    }
+    const created = { ...recipe, id: uid(), createdAt: now, updatedAt: now };
+    db.push(created);
+    writeDB(db);
+    return created;
+  },
+  async delete(id) {
+    writeDB(readDB().filter((r) => r.id !== id));
+    return true;
+  },
+  async exportJSON() {
+    return JSON.stringify({ version: 1, exportedAt: new Date().toISOString(), recipes: readDB() }, null, 2);
+  },
+  async importJSON(jsonString) {
+    const parsed = JSON.parse(jsonString);
+    const incoming = Array.isArray(parsed) ? parsed : parsed.recipes;
+    if (!Array.isArray(incoming)) throw new Error('Formato de archivo no válido');
+    const db = readDB();
+    const existingIds = new Set(db.map((r) => r.id));
+    let added = 0;
+    incoming.forEach((r) => {
+      if (r && r.id && !existingIds.has(r.id)) {
+        db.push(r);
+        existingIds.add(r.id);
+        added += 1;
+      }
+    });
+    writeDB(db);
+    return { added, total: db.length };
+  },
+};
+
+function useRecipeStorage() {
+  const [recipes, setRecipes] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  const refresh = useCallback(async () => {
+    const all = await storageAdapter.getAll();
+    setRecipes(all);
+  }, []);
+
+  useEffect(() => {
+    (async () => {
+      setLoading(true);
+      const all = await storageAdapter.getAll();
+      if (all.length === 0) {
+        for (const seed of SEED_RECIPES) {
+          await storageAdapter.save(seed);
+        }
+      }
+      await refresh();
+      setLoading(false);
+    })();
+  }, [refresh]);
+
+  const saveRecipe = useCallback(async (recipe) => {
+    const saved = await storageAdapter.save(recipe);
+    await refresh();
+    return saved;
+  }, [refresh]);
+
+  const deleteRecipe = useCallback(async (id) => {
+    await storageAdapter.delete(id);
+    await refresh();
+  }, [refresh]);
+
+  const exportRecipes = useCallback(() => storageAdapter.exportJSON(), []);
+
+  const importRecipes = useCallback(async (jsonString) => {
+    const result = await storageAdapter.importJSON(jsonString);
+    await refresh();
+    return result;
+  }, [refresh]);
+
+  return { recipes, loading, saveRecipe, deleteRecipe, exportRecipes, importRecipes };
+}
+
+/* =========================================================================
+   COMPONENTES BASE
+   ========================================================================= */
+
+function Badge({ children, tone = 'emerald' }) {
+  const tones = {
+    emerald: 'bg-emerald-50 text-emerald-700',
+    slate: 'bg-slate-100 text-slate-600',
+  };
+  return (
+    <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium ${tones[tone]}`}>
+      {children}
+    </span>
+  );
+}
+
+function Chip({ active, onClick, children, icon: Icon }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`inline-flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-sm font-medium transition-colors ${
+        active
+          ? 'border-emerald-600 bg-emerald-600 text-white shadow-sm'
+          : 'border-slate-200 bg-white text-slate-600 hover:border-emerald-300 hover:bg-emerald-50'
+      }`}
+    >
+      {Icon && <Icon className="h-3.5 w-3.5" />}
+      {children}
+    </button>
+  );
+}
+
+function ParamChip({ icon: Icon, children, tone = 'slate' }) {
+  const tones = {
+    slate: 'bg-slate-100 text-slate-600',
+    amber: 'bg-amber-50 text-amber-700',
+    emerald: 'bg-emerald-50 text-emerald-700',
+  };
+  return (
+    <span className={`inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-semibold ${tones[tone]}`}>
+      {Icon && <Icon className="h-3 w-3" />}
+      {children}
+    </span>
+  );
+}
+
+function Modal({ open, onClose, title, children }) {
+  if (!open) return null;
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900 bg-opacity-50 p-4"
+      onClick={onClose}
+    >
+      <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl" onClick={(e) => e.stopPropagation()}>
+        <div className="mb-4 flex items-center justify-between">
+          <h3 className="text-lg font-semibold text-slate-800">{title}</h3>
+          <button
+            onClick={onClose}
+            aria-label="Cerrar"
+            className="rounded-full p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+        {children}
+      </div>
+    </div>
+  );
+}
+
+function stepParamChips(step) {
+  const chips = [];
+  if (step.timeMin || step.timeSec) {
+    const m = Number(step.timeMin) || 0;
+    const s = Number(step.timeSec) || 0;
+    const label = m > 0 ? `${m} min${s ? ` ${s} seg` : ''}` : `${s} seg`;
+    chips.push({ key: 'time', icon: Clock, label, tone: 'slate' });
+  }
+  const temp = TEMPERATURES.find((t) => t.value === step.temperature);
+  if (temp) chips.push({ key: 'temp', icon: temp.icon, label: temp.label, tone: 'amber' });
+  if (step.speed) chips.push({ key: 'speed', icon: Gauge, label: `Vel. ${step.speed}`, tone: 'emerald' });
+  if (step.rotation && step.rotation !== 'normal') {
+    const rot = ROTATIONS.find((r) => r.value === step.rotation);
+    if (rot) chips.push({ key: 'rot', icon: RotateCcw, label: rot.label, tone: 'slate' });
+  }
+  const mode = TM7_MODES.find((m) => m.value === step.mode);
+  if (mode && mode.value) chips.push({ key: 'mode', icon: Layers, label: mode.label, tone: 'emerald' });
+  return chips;
+}
+
+/* =========================================================================
+   BÚSQUEDA Y FILTROS
+   ========================================================================= */
+
+function SearchFilterBar({ query, onQueryChange, allTags, activeTags, onToggleTag }) {
+  return (
+    <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+      <div className="relative flex-1">
+        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+        <input
+          value={query}
+          onChange={(e) => onQueryChange(e.target.value)}
+          placeholder="Buscar por título o ingrediente..."
+          className="w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-10 pr-4 text-sm text-slate-700 placeholder-slate-400 outline-none transition-colors focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"
+        />
+      </div>
+      <div className="flex flex-wrap gap-1.5">
+        {allTags.map((tag) => (
+          <button
+            key={tag}
+            onClick={() => onToggleTag(tag)}
+            className={`rounded-full border px-3 py-1.5 text-xs font-medium transition-colors ${
+              activeTags.includes(tag)
+                ? 'border-emerald-600 bg-emerald-600 text-white'
+                : 'border-slate-200 bg-white text-slate-500 hover:border-emerald-300'
+            }`}
+          >
+            {tag}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/* =========================================================================
+   TARJETA DE RECETA
+   ========================================================================= */
+
+function RecipeCard({ recipe, onOpen, onEdit, onDelete }) {
+  return (
+    <div className="flex flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white transition-all hover:-translate-y-0.5 hover:shadow-lg">
+      <button onClick={() => onOpen(recipe.id)} className="flex flex-1 flex-col p-5 text-left">
+        <div className="mb-3 flex flex-wrap gap-1.5">
+          {recipe.tags?.slice(0, 3).map((tag) => (
+            <Badge key={tag}>{tag}</Badge>
+          ))}
+        </div>
+        <h3 className="mb-1.5 text-lg font-semibold text-slate-800" style={{ fontFamily: FONT_DISPLAY }}>
+          {recipe.title}
+        </h3>
+        <p className="mb-4 line-clamp-2 flex-1 text-sm text-slate-500">{recipe.description}</p>
+        <div className="flex flex-wrap items-center gap-3 text-xs font-medium text-slate-400">
+          <span className="flex items-center gap-1"><Clock className="h-3.5 w-3.5" /> {recipe.totalTime} min</span>
+          <span className="flex items-center gap-1"><Users className="h-3.5 w-3.5" /> {recipe.servings} porc.</span>
+          <span className="flex items-center gap-1"><ListChecks className="h-3.5 w-3.5" /> {recipe.steps?.length || 0} pasos</span>
+        </div>
+      </button>
+      <div className="flex items-center justify-end gap-1 border-t border-slate-100 px-3 py-2">
+        <button
+          onClick={() => onEdit(recipe.id)}
+          aria-label="Editar receta"
+          className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-emerald-600"
+        >
+          <Pencil className="h-4 w-4" />
+        </button>
+        <button
+          onClick={() => onDelete(recipe)}
+          aria-label="Eliminar receta"
+          className="rounded-lg p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-500"
+        >
+          <Trash2 className="h-4 w-4" />
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/* =========================================================================
+   EDITOR DE INGREDIENTES
+   ========================================================================= */
+
+function IngredientsEditor({ ingredients, onChange }) {
+  const update = (id, field, value) => onChange(ingredients.map((i) => (i.id === id ? { ...i, [field]: value } : i)));
+  const remove = (id) => onChange(ingredients.filter((i) => i.id !== id));
+  const add = () => onChange([...ingredients, { id: uid(), quantity: '', unit: UNITS[0], name: '' }]);
+
+  return (
+    <div className="space-y-2">
+      {ingredients.map((ing) => (
+        <div key={ing.id} className="flex items-center gap-2">
+          <input
+            value={ing.quantity}
+            onChange={(e) => update(ing.id, 'quantity', e.target.value)}
+            placeholder="Cant."
+            className="w-16 rounded-lg border border-slate-200 px-2 py-2 text-sm outline-none focus:border-emerald-500"
+          />
+          <select
+            value={ing.unit}
+            onChange={(e) => update(ing.id, 'unit', e.target.value)}
+            className="w-24 rounded-lg border border-slate-200 px-2 py-2 text-sm text-slate-600 outline-none focus:border-emerald-500"
+          >
+            {UNITS.map((u) => (
+              <option key={u} value={u}>{u}</option>
+            ))}
+          </select>
+          <input
+            value={ing.name}
+            onChange={(e) => update(ing.id, 'name', e.target.value)}
+            placeholder="Ingrediente"
+            className="flex-1 rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-emerald-500"
+          />
+          <button
+            onClick={() => remove(ing.id)}
+            aria-label="Quitar ingrediente"
+            className="rounded-lg p-2 text-slate-400 hover:bg-red-50 hover:text-red-500"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      ))}
+      <button
+        type="button"
+        onClick={add}
+        className="flex items-center gap-1.5 rounded-lg border border-dashed border-slate-300 px-3 py-2 text-sm font-medium text-slate-500 hover:border-emerald-400 hover:text-emerald-600"
+      >
+        <Plus className="h-4 w-4" /> Añadir ingrediente
+      </button>
+    </div>
+  );
+}
+
+/* =========================================================================
+   CONSTRUCTOR DE PASOS — el corazón del recetario TM7
+   ========================================================================= */
+
+function StepEditor({ step, index, total, onChange, onRemove, onMove }) {
+  const set = (field, value) => onChange({ ...step, [field]: value });
+  const toggleAccessory = (value) => {
+    const has = step.accessories.includes(value);
+    set('accessories', has ? step.accessories.filter((a) => a !== value) : [...step.accessories, value]);
+  };
+
+  return (
+    <div className="rounded-2xl border border-slate-200 bg-white p-4">
+      <div className="mb-3 flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <span
+            className="flex h-7 w-7 items-center justify-center rounded-full bg-emerald-600 text-sm font-bold text-white"
+            style={{ fontFamily: FONT_DISPLAY }}
+          >
+            {index + 1}
+          </span>
+          <span className="text-sm font-medium text-slate-400">Paso {index + 1} de {total}</span>
+        </div>
+        <div className="flex items-center gap-1">
+          <button
+            type="button"
+            disabled={index === 0}
+            onClick={() => onMove(-1)}
+            aria-label="Mover paso arriba"
+            className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 disabled:opacity-30"
+          >
+            <ChevronUp className="h-4 w-4" />
+          </button>
+          <button
+            type="button"
+            disabled={index === total - 1}
+            onClick={() => onMove(1)}
+            aria-label="Mover paso abajo"
+            className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 disabled:opacity-30"
+          >
+            <ChevronDown className="h-4 w-4" />
+          </button>
+          <button
+            type="button"
+            onClick={onRemove}
+            aria-label="Eliminar paso"
+            className="rounded-lg p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-500"
+          >
+            <Trash2 className="h-4 w-4" />
+          </button>
+        </div>
+      </div>
+
+      <textarea
+        value={step.text}
+        onChange={(e) => set('text', e.target.value)}
+        rows={2}
+        placeholder="Describí este paso..."
+        className="mb-4 w-full resize-none rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-700 outline-none focus:border-emerald-500"
+      />
+
+      <div className="mb-4">
+        <label className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-slate-400">
+          <Clock className="h-3.5 w-3.5" /> Tiempo
+        </label>
+        <div className="flex items-center gap-2">
+          <input
+            type="number"
+            min="0"
+            value={step.timeMin}
+            onChange={(e) => set('timeMin', e.target.value)}
+            className="w-20 rounded-lg border border-slate-200 px-2 py-1.5 text-sm outline-none focus:border-emerald-500"
+          />
+          <span className="text-sm text-slate-400">min</span>
+          <input
+            type="number"
+            min="0"
+            max="59"
+            value={step.timeSec}
+            onChange={(e) => set('timeSec', e.target.value)}
+            className="w-20 rounded-lg border border-slate-200 px-2 py-1.5 text-sm outline-none focus:border-emerald-500"
+          />
+          <span className="text-sm text-slate-400">seg</span>
+        </div>
+      </div>
+
+      <div className="mb-4">
+        <label className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-slate-400">
+          <Thermometer className="h-3.5 w-3.5" /> Temperatura
+        </label>
+        <div className="flex flex-wrap gap-1.5">
+          {TEMPERATURES.map((t) => (
+            <Chip
+              key={t.value}
+              icon={t.icon}
+              active={step.temperature === t.value}
+              onClick={() => set('temperature', step.temperature === t.value ? '' : t.value)}
+            >
+              {t.label}
+            </Chip>
+          ))}
+        </div>
+      </div>
+
+      <div className="mb-4">
+        <label className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-slate-400">
+          <Gauge className="h-3.5 w-3.5" /> Velocidad
+        </label>
+        <div className="flex flex-wrap gap-1.5">
+          {SPEEDS.map((s) => (
+            <Chip key={s} active={step.speed === s} onClick={() => set('speed', step.speed === s ? '' : s)}>
+              {s}
+            </Chip>
+          ))}
+        </div>
+      </div>
+
+      <div className="mb-4">
+        <label className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-slate-400">
+          <RotateCcw className="h-3.5 w-3.5" /> Sentido de giro
+        </label>
+        <div className="flex flex-wrap gap-1.5">
+          {ROTATIONS.map((r) => (
+            <Chip key={r.value} active={step.rotation === r.value} onClick={() => set('rotation', r.value)}>
+              {r.label}
+            </Chip>
+          ))}
+        </div>
+      </div>
+
+      <div className="mb-4">
+        <label className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-slate-400">
+          <Layers className="h-3.5 w-3.5" /> Modo especial TM7
+        </label>
+        <select
+          value={step.mode}
+          onChange={(e) => set('mode', e.target.value)}
+          className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-600 outline-none focus:border-emerald-500 sm:w-64"
+        >
+          {TM7_MODES.map((m) => (
+            <option key={m.value} value={m.value}>{m.label}</option>
+          ))}
+        </select>
+      </div>
+
+      <div>
+        <label className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-slate-400">
+          <Beaker className="h-3.5 w-3.5" /> Accesorios requeridos
+        </label>
+        <div className="flex flex-wrap gap-1.5">
+          {ACCESSORIES.map((a) => (
+            <Chip key={a.value} icon={a.icon} active={step.accessories.includes(a.value)} onClick={() => toggleAccessory(a.value)}>
+              {a.label}
+            </Chip>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* =========================================================================
+   FORMULARIO DE RECETA (crear / editar)
+   ========================================================================= */
+
+function emptyStep() {
+  return { id: uid(), text: '', timeMin: '', timeSec: '', temperature: '', speed: '', rotation: 'normal', mode: '', accessories: [] };
+}
+
+function emptyRecipe() {
+  return {
+    id: null,
+    title: '',
+    description: '',
+    totalTime: '',
+    prepTime: '',
+    servings: '',
+    tags: [],
+    ingredients: [{ id: uid(), quantity: '', unit: UNITS[0], name: '' }],
+    steps: [emptyStep()],
+  };
+}
+
+function RecipeForm({ initial, onSave, onCancel }) {
+  const [recipe, setRecipe] = useState(() => initial || emptyRecipe());
+  const [tagInput, setTagInput] = useState('');
+  const [errors, setErrors] = useState({});
+
+  const set = (field, value) => setRecipe((r) => ({ ...r, [field]: value }));
+
+  const toggleTag = (tag) => {
+    setRecipe((r) => ({
+      ...r,
+      tags: r.tags.includes(tag) ? r.tags.filter((t) => t !== tag) : [...r.tags, tag],
+    }));
+  };
+
+  const addCustomTag = () => {
+    const t = tagInput.trim();
+    if (t && !recipe.tags.includes(t)) setRecipe((r) => ({ ...r, tags: [...r.tags, t] }));
+    setTagInput('');
+  };
+
+  const updateStep = (id, next) => setRecipe((r) => ({ ...r, steps: r.steps.map((s) => (s.id === id ? next : s)) }));
+  const removeStep = (id) => setRecipe((r) => ({ ...r, steps: r.steps.length > 1 ? r.steps.filter((s) => s.id !== id) : r.steps }));
+  const addStep = () => setRecipe((r) => ({ ...r, steps: [...r.steps, emptyStep()] }));
+  const moveStep = (id, dir) => {
+    setRecipe((r) => {
+      const idx = r.steps.findIndex((s) => s.id === id);
+      const newIdx = idx + dir;
+      if (newIdx < 0 || newIdx >= r.steps.length) return r;
+      const steps = [...r.steps];
+      [steps[idx], steps[newIdx]] = [steps[newIdx], steps[idx]];
+      return { ...r, steps };
+    });
+  };
+
+  const handleSubmit = () => {
+    const nextErrors = {};
+    if (!recipe.title.trim()) nextErrors.title = 'El título es obligatorio.';
+    if (recipe.ingredients.every((i) => !i.name.trim())) nextErrors.ingredients = 'Agregá al menos un ingrediente.';
+    if (recipe.steps.every((s) => !s.text.trim())) nextErrors.steps = 'Agregá al menos un paso con instrucciones.';
+    setErrors(nextErrors);
+    if (Object.keys(nextErrors).length > 0) return;
+    onSave({
+      ...recipe,
+      totalTime: Number(recipe.totalTime) || 0,
+      prepTime: Number(recipe.prepTime) || 0,
+      servings: Number(recipe.servings) || 0,
+      ingredients: recipe.ingredients.filter((i) => i.name.trim()),
+      steps: recipe.steps.filter((s) => s.text.trim()),
+    });
+  };
+
+  const customTags = recipe.tags.filter((t) => !DEFAULT_TAGS.includes(t));
+
+  return (
+    <div className="mx-auto max-w-3xl pb-28">
+      <div className="mb-6 flex items-center gap-3">
+        <button onClick={onCancel} aria-label="Volver" className="rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-600">
+          <ArrowLeft className="h-5 w-5" />
+        </button>
+        <h2 className="text-xl font-bold text-slate-800" style={{ fontFamily: FONT_DISPLAY }}>
+          {initial ? 'Editar receta' : 'Nueva receta'}
+        </h2>
+      </div>
+
+      <section className="mb-6 rounded-2xl border border-slate-200 bg-white p-5">
+        <h3 className="mb-4 text-sm font-semibold uppercase tracking-wide text-emerald-700">Datos básicos</h3>
+        <div className="mb-4">
+          <label className="mb-1.5 block text-sm font-medium text-slate-600">Título</label>
+          <input
+            value={recipe.title}
+            onChange={(e) => set('title', e.target.value)}
+            placeholder="Ej: Salsa Bolognesa Express"
+            className={`w-full rounded-lg border px-3 py-2.5 text-sm outline-none focus:border-emerald-500 ${errors.title ? 'border-red-300' : 'border-slate-200'}`}
+          />
+          {errors.title && <p className="mt-1 text-xs text-red-500">{errors.title}</p>}
+        </div>
+        <div className="mb-4">
+          <label className="mb-1.5 block text-sm font-medium text-slate-600">Descripción corta</label>
+          <textarea
+            value={recipe.description}
+            onChange={(e) => set('description', e.target.value)}
+            rows={2}
+            placeholder="Una línea que resuma la receta"
+            className="w-full resize-none rounded-lg border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-emerald-500"
+          />
+        </div>
+        <div className="mb-4 grid grid-cols-3 gap-3">
+          <div>
+            <label className="mb-1.5 block text-sm font-medium text-slate-600">Tiempo total (min)</label>
+            <input type="number" min="0" value={recipe.totalTime} onChange={(e) => set('totalTime', e.target.value)} className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-emerald-500" />
+          </div>
+          <div>
+            <label className="mb-1.5 block text-sm font-medium text-slate-600">Preparación (min)</label>
+            <input type="number" min="0" value={recipe.prepTime} onChange={(e) => set('prepTime', e.target.value)} className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-emerald-500" />
+          </div>
+          <div>
+            <label className="mb-1.5 block text-sm font-medium text-slate-600">Raciones</label>
+            <input type="number" min="0" value={recipe.servings} onChange={(e) => set('servings', e.target.value)} className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-emerald-500" />
+          </div>
+        </div>
+        <div>
+          <label className="mb-1.5 block text-sm font-medium text-slate-600">Etiquetas</label>
+          <div className="mb-2 flex flex-wrap gap-1.5">
+            {DEFAULT_TAGS.map((tag) => (
+              <button
+                type="button"
+                key={tag}
+                onClick={() => toggleTag(tag)}
+                className={`rounded-full border px-3 py-1.5 text-xs font-medium transition-colors ${
+                  recipe.tags.includes(tag) ? 'border-emerald-600 bg-emerald-600 text-white' : 'border-slate-200 bg-white text-slate-500 hover:border-emerald-300'
+                }`}
+              >
+                {tag}
+              </button>
+            ))}
+          </div>
+          <div className="flex gap-2">
+            <input
+              value={tagInput}
+              onChange={(e) => setTagInput(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addCustomTag(); } }}
+              placeholder="Otra etiqueta + Enter"
+              className="flex-1 rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-emerald-500"
+            />
+            <button type="button" onClick={addCustomTag} className="rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-500 hover:border-emerald-300">
+              Añadir
+            </button>
+          </div>
+          {customTags.length > 0 && (
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {customTags.map((tag) => (
+                <span key={tag} className="inline-flex items-center gap-1 rounded-full bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white">
+                  {tag}
+                  <button type="button" onClick={() => toggleTag(tag)} aria-label={`Quitar etiqueta ${tag}`}>
+                    <X className="h-3 w-3" />
+                  </button>
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+      </section>
+
+      <section className="mb-6 rounded-2xl border border-slate-200 bg-white p-5">
+        <h3 className="mb-4 text-sm font-semibold uppercase tracking-wide text-emerald-700">Ingredientes</h3>
+        <IngredientsEditor ingredients={recipe.ingredients} onChange={(list) => set('ingredients', list)} />
+        {errors.ingredients && <p className="mt-2 text-xs text-red-500">{errors.ingredients}</p>}
+      </section>
+
+      <section className="mb-6">
+        <div className="mb-4 flex items-center justify-between">
+          <h3 className="text-sm font-semibold uppercase tracking-wide text-emerald-700">Pasos</h3>
+          {errors.steps && <p className="text-xs text-red-500">{errors.steps}</p>}
+        </div>
+        <div className="space-y-3">
+          {recipe.steps.map((step, idx) => (
+            <StepEditor
+              key={step.id}
+              step={step}
+              index={idx}
+              total={recipe.steps.length}
+              onChange={(next) => updateStep(step.id, next)}
+              onRemove={() => removeStep(step.id)}
+              onMove={(dir) => moveStep(step.id, dir)}
+            />
+          ))}
+        </div>
+        <button
+          type="button"
+          onClick={addStep}
+          className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-2xl border border-dashed border-slate-300 py-3 text-sm font-medium text-slate-500 hover:border-emerald-400 hover:text-emerald-600"
+        >
+          <Plus className="h-4 w-4" /> Añadir paso
+        </button>
+      </section>
+
+      <div className="fixed inset-x-0 bottom-0 z-30 border-t border-slate-200 bg-white">
+        <div className="mx-auto flex max-w-3xl items-center justify-end gap-3 px-4 py-3">
+          <button type="button" onClick={onCancel} className="rounded-xl px-4 py-2.5 text-sm font-medium text-slate-500 hover:bg-slate-100">
+            Cancelar
+          </button>
+          <button
+            type="button"
+            onClick={handleSubmit}
+            className="flex items-center gap-1.5 rounded-xl bg-emerald-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-emerald-700"
+          >
+            <Save className="h-4 w-4" /> Guardar receta
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* =========================================================================
+   DETALLE DE RECETA
+   ========================================================================= */
+
+function RecipeDetail({ recipe, onBack, onEdit, onDelete, onStartCook }) {
+  return (
+    <div className="mx-auto max-w-5xl">
+      <div className="mb-6 flex items-start gap-3">
+        <button onClick={onBack} aria-label="Volver" className="mt-1 rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-600">
+          <ArrowLeft className="h-5 w-5" />
+        </button>
+        <div className="flex-1">
+          <div className="mb-1 flex flex-wrap gap-1.5">
+            {recipe.tags?.map((t) => <Badge key={t}>{t}</Badge>)}
+          </div>
+          <h2 className="text-2xl font-bold text-slate-800" style={{ fontFamily: FONT_DISPLAY }}>{recipe.title}</h2>
+        </div>
+        <button onClick={() => onEdit(recipe.id)} aria-label="Editar receta" className="mt-1 rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-emerald-600">
+          <Pencil className="h-5 w-5" />
+        </button>
+        <button onClick={() => onDelete(recipe)} aria-label="Eliminar receta" className="mt-1 rounded-lg p-2 text-slate-400 hover:bg-red-50 hover:text-red-500">
+          <Trash2 className="h-5 w-5" />
+        </button>
+      </div>
+
+      {recipe.description && <p className="mb-6 text-slate-500">{recipe.description}</p>}
+
+      <div className="mb-8 flex flex-wrap items-center gap-4 rounded-2xl border border-slate-200 bg-white p-4">
+        <div className="flex items-center gap-2 text-sm text-slate-600"><Clock className="h-4 w-4 text-emerald-600" /> {recipe.totalTime} min totales</div>
+        <div className="h-4 w-px bg-slate-200" />
+        <div className="flex items-center gap-2 text-sm text-slate-600"><Timer className="h-4 w-4 text-emerald-600" /> {recipe.prepTime} min de preparación</div>
+        <div className="h-4 w-px bg-slate-200" />
+        <div className="flex items-center gap-2 text-sm text-slate-600"><Users className="h-4 w-4 text-emerald-600" /> {recipe.servings} porciones</div>
+        <button
+          onClick={() => onStartCook(recipe.id)}
+          className="ml-auto flex items-center gap-2 rounded-xl bg-emerald-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-emerald-700"
+        >
+          <PlayCircle className="h-4 w-4" /> Iniciar Modo Cocina
+        </button>
+      </div>
+
+      <div className="grid grid-cols-1 gap-8 lg:grid-cols-3">
+        <div className="lg:col-span-1">
+          <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-emerald-700">
+            <ListChecks className="h-4 w-4" /> Ingredientes
+          </h3>
+          <ul className="space-y-2 rounded-2xl border border-slate-200 bg-white p-4">
+            {recipe.ingredients?.map((ing) => (
+              <li key={ing.id} className="flex items-baseline gap-1.5 text-sm text-slate-600">
+                <span className="font-semibold text-slate-800">
+                  {ing.quantity}{ing.unit && ing.unit !== 'unidad' ? ` ${ing.unit}` : ''}
+                </span>
+                <span>{ing.name}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+        <div className="lg:col-span-2">
+          <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-emerald-700">
+            <Layers className="h-4 w-4" /> Pasos
+          </h3>
+          <div className="space-y-3">
+            {recipe.steps?.map((step, idx) => {
+              const chips = stepParamChips(step);
+              return (
+                <div key={step.id} className="rounded-2xl border border-slate-200 bg-white p-4">
+                  <div className="mb-2 flex items-start gap-3">
+                    <span className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-emerald-100 text-xs font-bold text-emerald-700">
+                      {idx + 1}
+                    </span>
+                    <p className="text-sm text-slate-700">{step.text}</p>
+                  </div>
+                  {(chips.length > 0 || step.accessories?.length > 0) && (
+                    <div className="ml-9 flex flex-wrap gap-1.5">
+                      {chips.map((c) => <ParamChip key={c.key} icon={c.icon} tone={c.tone}>{c.label}</ParamChip>)}
+                      {step.accessories?.map((accVal) => {
+                        const acc = ACCESSORIES.find((a) => a.value === accVal);
+                        return acc ? <ParamChip key={accVal} icon={acc.icon}>{acc.label}</ParamChip> : null;
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* =========================================================================
+   MODO COCINA — vista guiada de pantalla completa
+   ========================================================================= */
+
+function CookMode({ recipe, stepIndex, onClose, onNext, onPrev, onGoTo }) {
+  const step = recipe.steps[stepIndex];
+  const total = recipe.steps.length;
+  const progress = ((stepIndex + 1) / total) * 100;
+  const temp = TEMPERATURES.find((t) => t.value === step.temperature);
+  const mode = TM7_MODES.find((m) => m.value === step.mode);
+  const rotation = ROTATIONS.find((r) => r.value === step.rotation);
+  const hasTime = (step.timeMin !== '' && step.timeMin !== undefined) || (step.timeSec !== '' && step.timeSec !== undefined);
+  const showRotation = step.rotation && step.rotation !== 'normal';
+  const showBadgeRow = showRotation || (mode && mode.value) || (step.accessories && step.accessories.length > 0);
+
+  return (
+    <div className="fixed inset-0 z-50 flex flex-col bg-slate-50" style={{ fontFamily: FONT_BODY }}>
+      <div className="flex items-center gap-4 border-b border-slate-200 bg-white px-4 py-3 sm:px-8">
+        <button onClick={onClose} aria-label="Cerrar modo cocina" className="rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-600">
+          <X className="h-5 w-5" />
+        </button>
+        <div className="flex-1">
+          <div className="mb-1 flex items-center justify-between text-xs font-medium text-slate-400">
+            <span className="truncate pr-2">{recipe.title}</span>
+            <span className="flex-shrink-0">Paso {stepIndex + 1} de {total}</span>
+          </div>
+          <div className="h-1.5 w-full overflow-hidden rounded-full bg-slate-200">
+            <div className="h-full rounded-full bg-emerald-600 transition-all duration-300" style={{ width: `${progress}%` }} />
+          </div>
+        </div>
+      </div>
+
+      <div className="flex flex-1 flex-col items-center justify-center overflow-y-auto px-4 py-8 sm:px-8">
+        <div className="w-full max-w-2xl">
+          <p className="mb-8 text-center text-2xl font-medium leading-snug text-slate-800 sm:text-3xl">
+            {step.text}
+          </p>
+
+          <div className="mb-6 rounded-3xl bg-slate-900 p-6 shadow-xl sm:p-8">
+            <div className="grid grid-cols-3 divide-x divide-slate-700">
+              <div className="flex flex-col items-center px-2">
+                <Clock className="mb-2 h-5 w-5 text-slate-400" />
+                <span className="text-xs uppercase tracking-wide text-slate-400">Tiempo</span>
+                <span className="mt-1 text-2xl font-bold text-white sm:text-3xl" style={{ fontFamily: FONT_DISPLAY }}>
+                  {hasTime ? `${step.timeMin || 0}:${String(step.timeSec || 0).padStart(2, '0')}` : '—'}
+                </span>
+              </div>
+              <div className="flex flex-col items-center px-2">
+                {temp ? <temp.icon className="mb-2 h-5 w-5 text-amber-400" /> : <Thermometer className="mb-2 h-5 w-5 text-slate-600" />}
+                <span className="text-xs uppercase tracking-wide text-slate-400">Temperatura</span>
+                <span className="mt-1 text-2xl font-bold text-amber-400 sm:text-3xl" style={{ fontFamily: FONT_DISPLAY }}>
+                  {temp ? temp.label : '—'}
+                </span>
+              </div>
+              <div className="flex flex-col items-center px-2">
+                <Gauge className="mb-2 h-5 w-5 text-emerald-400" />
+                <span className="text-xs uppercase tracking-wide text-slate-400">Velocidad</span>
+                <span className="mt-1 text-2xl font-bold text-emerald-400 sm:text-3xl" style={{ fontFamily: FONT_DISPLAY }}>
+                  {step.speed || '—'}
+                </span>
+              </div>
+            </div>
+
+            {showBadgeRow && (
+              <div className="mt-6 flex flex-wrap items-center justify-center gap-2 border-t border-slate-700 pt-4">
+                {showRotation && rotation && (
+                  <span className="inline-flex items-center gap-1.5 rounded-lg bg-slate-800 px-3 py-1.5 text-xs font-medium text-slate-200">
+                    <RotateCcw className="h-3.5 w-3.5" /> {rotation.label}
+                  </span>
+                )}
+                {mode && mode.value && (
+                  <span className="inline-flex items-center gap-1.5 rounded-lg bg-slate-800 px-3 py-1.5 text-xs font-medium text-slate-200">
+                    <Layers className="h-3.5 w-3.5" /> {mode.label}
+                  </span>
+                )}
+                {step.accessories?.map((accVal) => {
+                  const acc = ACCESSORIES.find((a) => a.value === accVal);
+                  if (!acc) return null;
+                  const Icon = acc.icon;
+                  return (
+                    <span key={accVal} className="inline-flex items-center gap-1.5 rounded-lg bg-slate-800 px-3 py-1.5 text-xs font-medium text-slate-200">
+                      <Icon className="h-3.5 w-3.5" /> {acc.label}
+                    </span>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          <p className="text-center text-xs text-slate-400">Programá estos valores directamente en tu Thermomix.</p>
+        </div>
+      </div>
+
+      <div className="flex items-center justify-between gap-3 border-t border-slate-200 bg-white px-4 py-4 sm:px-8">
+        <button
+          onClick={onPrev}
+          disabled={stepIndex === 0}
+          className="flex items-center gap-2 rounded-xl border border-slate-200 px-5 py-3 text-sm font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-30"
+        >
+          <ChevronLeft className="h-5 w-5" /> <span className="hidden sm:inline">Anterior</span>
+        </button>
+        <div className="hidden gap-1.5 sm:flex">
+          {recipe.steps.map((_, i) => (
+            <button
+              key={i}
+              onClick={() => onGoTo(i)}
+              aria-label={`Ir al paso ${i + 1}`}
+              className={`h-2 w-2 rounded-full transition-colors ${i === stepIndex ? 'bg-emerald-600' : 'bg-slate-200 hover:bg-slate-300'}`}
+            />
+          ))}
+        </div>
+        {stepIndex === total - 1 ? (
+          <button onClick={onClose} className="flex items-center gap-2 rounded-xl bg-emerald-600 px-5 py-3 text-sm font-semibold text-white hover:bg-emerald-700">
+            <Check className="h-5 w-5" /> Finalizar
+          </button>
+        ) : (
+          <button onClick={onNext} className="flex items-center gap-2 rounded-xl bg-emerald-600 px-5 py-3 text-sm font-semibold text-white hover:bg-emerald-700">
+            <span className="hidden sm:inline">Siguiente</span> <ChevronRight className="h-5 w-5" />
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* =========================================================================
+   RESPALDO — exportar / importar JSON
+   ========================================================================= */
+
+function ImportExportBar({ onExport, onImport }) {
+  const fileRef = useRef(null);
+  return (
+    <div className="flex items-center gap-1">
+      <button
+        onClick={onExport}
+        title="Exportar recetas (JSON)"
+        className="flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-500 hover:border-emerald-300 hover:text-emerald-600"
+      >
+        <Download className="h-4 w-4" /> <span className="hidden sm:inline">Exportar</span>
+      </button>
+      <button
+        onClick={() => fileRef.current?.click()}
+        title="Importar recetas (JSON)"
+        className="flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-500 hover:border-emerald-300 hover:text-emerald-600"
+      >
+        <Upload className="h-4 w-4" /> <span className="hidden sm:inline">Importar</span>
+      </button>
+      <input
+        ref={fileRef}
+        type="file"
+        accept="application/json"
+        className="hidden"
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          if (file) onImport(file);
+          e.target.value = '';
+        }}
+      />
+    </div>
+  );
+}
+
+/* =========================================================================
+   APP
+   ========================================================================= */
+
+export default function App() {
+  const { recipes, loading, saveRecipe, deleteRecipe, exportRecipes, importRecipes } = useRecipeStorage();
+  const [view, setView] = useState('list'); // list | form | detail | cook
+  const [activeId, setActiveId] = useState(null);
+  const [cookIndex, setCookIndex] = useState(0);
+  const [query, setQuery] = useState('');
+  const [activeTags, setActiveTags] = useState([]);
+  const [confirmDelete, setConfirmDelete] = useState(null);
+  const [toast, setToast] = useState(null);
+
+  useEffect(() => {
+    const link = document.createElement('link');
+    link.rel = 'stylesheet';
+    link.href = 'https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap';
+    document.head.appendChild(link);
+    return () => { document.head.removeChild(link); };
+  }, []);
+
+  const showToast = (message, tone = 'success') => {
+    setToast({ message, tone });
+    setTimeout(() => setToast(null), 3000);
+  };
+
+  const allTags = useMemo(() => {
+    const set = new Set(DEFAULT_TAGS);
+    recipes.forEach((r) => r.tags?.forEach((t) => set.add(t)));
+    return Array.from(set);
+  }, [recipes]);
+
+  const filteredRecipes = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return recipes.filter((r) => {
+      const matchesQuery = !q || r.title.toLowerCase().includes(q) || r.ingredients?.some((i) => i.name.toLowerCase().includes(q));
+      const matchesTags = activeTags.length === 0 || activeTags.every((t) => r.tags?.includes(t));
+      return matchesQuery && matchesTags;
+    });
+  }, [recipes, query, activeTags]);
+
+  const activeRecipe = useMemo(() => recipes.find((r) => r.id === activeId) || null, [recipes, activeId]);
+
+  const toggleTag = (tag) => setActiveTags((prev) => (prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]));
+
+  const openDetail = (id) => { setActiveId(id); setView('detail'); };
+  const openNew = () => { setActiveId(null); setView('form'); };
+  const openEdit = (id) => { setActiveId(id); setView('form'); };
+  const backToList = () => { setView('list'); setActiveId(null); };
+
+  const handleSave = async (recipeData) => {
+    const wasNew = !recipeData.id;
+    const saved = await saveRecipe(recipeData);
+    showToast(wasNew ? 'Receta creada' : 'Receta actualizada');
+    setActiveId(saved.id);
+    setView('detail');
+  };
+
+  const handleDelete = async () => {
+    if (!confirmDelete) return;
+    await deleteRecipe(confirmDelete.id);
+    showToast('Receta eliminada');
+    const wasActive = activeId === confirmDelete.id;
+    setConfirmDelete(null);
+    if (wasActive) backToList();
+  };
+
+  const handleExport = async () => {
+    const json = await exportRecipes();
+    const blob = new Blob([json], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `recetario-tm7-${new Date().toISOString().slice(0, 10)}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    showToast('Recetas exportadas');
+  };
+
+  const handleImport = async (file) => {
+    try {
+      const text = await file.text();
+      const result = await importRecipes(text);
+      showToast(`${result.added} receta(s) importada(s)`);
+    } catch {
+      showToast('El archivo no tiene un formato válido', 'error');
+    }
+  };
+
+  const startCook = (id) => { setActiveId(id); setCookIndex(0); setView('cook'); };
+
+  return (
+    <div className="min-h-screen bg-slate-50" style={{ fontFamily: FONT_BODY }}>
+      <style>{`
+        @media (prefers-reduced-motion: reduce) {
+          *, *::before, *::after {
+            animation-duration: 0.01ms !important;
+            animation-iteration-count: 1 !important;
+            transition-duration: 0.01ms !important;
+          }
+        }
+      `}</style>
+
+      <header className="sticky top-0 z-20 border-b border-slate-200 bg-white">
+        <div className="mx-auto flex max-w-6xl items-center gap-3 px-4 py-4 sm:px-6">
+          <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl bg-emerald-600 text-white">
+            <ChefHat className="h-5 w-5" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <h1 className="truncate text-base font-bold leading-none text-slate-800 sm:text-lg" style={{ fontFamily: FONT_DISPLAY }}>
+              Recetario TM7
+            </h1>
+            <p className="mt-0.5 text-xs text-slate-400">{recipes.length} recetas guardadas</p>
+          </div>
+          {view === 'list' && (
+            <div className="flex items-center gap-2">
+              <ImportExportBar onExport={handleExport} onImport={handleImport} />
+              <button
+                onClick={openNew}
+                className="flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-2 text-sm font-semibold text-white hover:bg-emerald-700 sm:px-4"
+              >
+                <Plus className="h-4 w-4" /> <span className="hidden sm:inline">Nueva receta</span>
+              </button>
+            </div>
+          )}
+        </div>
+      </header>
+
+      <main className="mx-auto max-w-6xl px-4 py-6 sm:px-6">
+        {view === 'list' && (
+          <>
+            <div className="mb-6">
+              <SearchFilterBar query={query} onQueryChange={setQuery} allTags={allTags} activeTags={activeTags} onToggleTag={toggleTag} />
+            </div>
+
+            {loading ? (
+              <div className="flex items-center justify-center py-24 text-slate-400">
+                <Loader2 className="h-6 w-6 animate-spin" />
+              </div>
+            ) : filteredRecipes.length === 0 ? (
+              <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-slate-300 py-20 text-center">
+                <AlertCircle className="mb-3 h-8 w-8 text-slate-300" />
+                <p className="mb-1 font-medium text-slate-500">No encontramos recetas</p>
+                <p className="text-sm text-slate-400">Probá con otra búsqueda o creá tu primera receta.</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                {filteredRecipes.map((r) => (
+                  <RecipeCard key={r.id} recipe={r} onOpen={openDetail} onEdit={openEdit} onDelete={setConfirmDelete} />
+                ))}
+              </div>
+            )}
+          </>
+        )}
+
+        {view === 'form' && (
+          <RecipeForm initial={activeRecipe} onSave={handleSave} onCancel={() => (activeId ? setView('detail') : backToList())} />
+        )}
+
+        {view === 'detail' && activeRecipe && (
+          <RecipeDetail recipe={activeRecipe} onBack={backToList} onEdit={openEdit} onDelete={setConfirmDelete} onStartCook={startCook} />
+        )}
+      </main>
+
+      <Modal open={!!confirmDelete} onClose={() => setConfirmDelete(null)} title="Eliminar receta">
+        <p className="mb-5 text-sm text-slate-500">
+          ¿Seguro que querés eliminar <span className="font-semibold text-slate-700">"{confirmDelete?.title}"</span>? Esta acción no se puede deshacer.
+        </p>
+        <div className="flex justify-end gap-2">
+          <button onClick={() => setConfirmDelete(null)} className="rounded-lg px-4 py-2 text-sm font-medium text-slate-500 hover:bg-slate-100">
+            Cancelar
+          </button>
+          <button onClick={handleDelete} className="rounded-lg bg-red-500 px-4 py-2 text-sm font-semibold text-white hover:bg-red-600">
+            Eliminar
+          </button>
+        </div>
+      </Modal>
+
+      {toast && (
+        <div
+          className={`fixed bottom-6 left-1/2 z-40 -translate-x-1/2 rounded-xl border px-4 py-3 text-sm font-medium shadow-lg ${
+            toast.tone === 'error' ? 'border-red-200 bg-red-50 text-red-600' : 'border-emerald-200 bg-emerald-50 text-emerald-700'
+          }`}
+        >
+          {toast.message}
+        </div>
+      )}
+
+      {view === 'cook' && activeRecipe && (
+        <CookMode
+          recipe={activeRecipe}
+          stepIndex={cookIndex}
+          onClose={() => setView('detail')}
+          onNext={() => setCookIndex((i) => Math.min(i + 1, activeRecipe.steps.length - 1))}
+          onPrev={() => setCookIndex((i) => Math.max(i - 1, 0))}
+          onGoTo={(i) => setCookIndex(i)}
+        />
+      )}
+    </div>
+  );
+}
